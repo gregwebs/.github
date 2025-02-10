@@ -1,0 +1,4 @@
+{
+    "name": "Deploy Latest Release",
+    "description": "Deploy to production when a latest release is created."
+}

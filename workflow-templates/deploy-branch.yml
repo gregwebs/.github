@@ -1,0 +1,21 @@
+# Auto deploy to staging when there is a PR to deploy to prod
+name: Deploy branch
+
+on:
+  push:
+    branches:
+      # To auto-deploy main, uncomment this next line
+      # - 'main'
+      # An example convention where any branch with this prefix would be deployed to the 'qa' environment
+      - 'deploy/qa/*'
+      - 'test-ci/deploy-branch/*' # For a quick test of the workflow syntax
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/build-deploy.yaml
+    with:
+      # support the deploy/qa prefix
+      environment: "${{\
+        startsWith(github.ref, 'refs/heads/deploy/qa') && 'qa' \
+        }}"
+    secrets: inherit

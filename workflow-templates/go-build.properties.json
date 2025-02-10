@@ -1,0 +1,11 @@
+{
+    "name": "Go Build Workflow",
+    "description": "Check, Build, Test, and push artifacts",
+    "categories": [
+        "Go"
+    ],
+    "filePatterns": [
+        "go.mod",
+        "main.go"
+    ]
+}

@@ -1,0 +1,111 @@
+# Build, test, and lint changes
+# For Qa, staging, etc, this workflow should be called
+# It will then push build artifacts (docker images)
+name: Build
+
+on:
+  merge_group:
+    types: [checks_requested]
+
+  pull_request:
+
+  push:
+    branches:
+      - 'test-ci/build/*'
+      - '$default-branch'
+
+  workflow_call:
+    inputs:
+      artifacts:
+        required: false
+        type: boolean
+      noNotify:
+        required: false
+        type: boolean
+        default: true
+      environment:
+        required: false
+        type: string
+      ref:
+        required: false
+        type: string
+
+env:
+  GO_VERSION: 1.22.0
+
+jobs:
+  # checks that can be ran in parallel with the build
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "${{inputs.ref}}"
+
+
+  # lint can take a long time, so run it in its own job
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "${{inputs.ref}}"
+
+  build:
+    environment: "${{inputs.environment}}"
+    # production-build is useful for requiring a review for the deploy environment but not the build environment
+    #environment: "${{\
+    #  (inputs.environment == 'production' && 'production-build') || inputs.environment \
+    #  }}"
+
+    # Using an expression makes it so there are no validation complaints
+    runs-on: "${{'Larger_Runner'}}"
+
+    services:
+      postgres:
+        image: postgres:14.9
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_USER: postgres
+          POSTGRES_DB: bravo_test
+          POSTGRES_DATABASE: bravo_test
+        ports:
+          - "5432:5432"
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "${{inputs.ref}}"
+
+      - name: Set variables for building and pushing artifacts
+        if: inputs.artifacts
+        shell: bash
+        run: |
+          echo "inputs: environment=${{inputs.environment}} ref=${{inputs.ref}} artifacts=${{inputs.artifacts}} noNotify=${{inputs.noNotify}}"
+          echo "building ${{inputs.ref || github.ref_name}}"
+          echo "VERSION=`git rev-parse --short HEAD`" >> $GITHUB_ENV
+          echo "ENVIRONMENT=${{vars.ENVIRONMENT}}" >> $GITHUB_ENV
+
+      - name: build and test
+        shell: bash
+        run: EXTERNAL_POSTGRES=1 ./script/ci/build-test.sh
+
+      - name: Check status step
+        id: check-step
+        if: success()
+        shell: bash
+        run: echo "Workflow successful"
+
+      - name: "Notify slack"
+        if: ${{ always() && !inputs.noNotify }}
+        shell: bash
+        run: |
+          FAILURE=${{ steps.check-step.outcome != 'success' && 'true' || '' }} \
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} \
+          ./script/ci/slack-notification.sh built ${{ env.ENVIRONMENT }} ${{ inputs.artifacts && 'and pushed' || ''}}

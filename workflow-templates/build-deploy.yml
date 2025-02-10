@@ -1,0 +1,46 @@
+# Deploy artifacts by updating manifests in GKE
+name: Build and Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: environment to push docker image to
+        required: true
+        type: choice
+        options:
+          - qa
+          - staging
+          - production
+
+  workflow_call:
+    inputs:
+      environment:
+        description: environment to push docker image to
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+
+  push:
+    branches:
+      - 'test-ci/build-deploy/*'
+
+jobs:
+  # The build job validates and pushes artifacts
+  build:
+    uses: ./.github/workflows/build.yaml
+    with:
+      artifacts: true
+      ref: "${{inputs.ref}}"
+      environment: "${{inputs.environment}}"
+    secrets: inherit
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      ref: "${{inputs.ref}}"
+      environment: "${{inputs.environment}}"
+    secrets: inherit

@@ -1,0 +1,66 @@
+# Deploy artifacts by updating manifests in GKE
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: environment to push docker image to
+        required: true
+        type: choice
+        options:
+          - qa
+          - staging
+          - production
+    
+  workflow_call:
+    inputs:
+      notify:
+        required: false
+        type: boolean
+        default: true
+      environment:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+
+  push:
+    branches:
+      - 'test-ci/deploy/*'
+
+jobs:
+  deploy:
+    # A release/prod branch can use the build job above to push artifacts: this can speed things up.
+    # but it isn't used for actual deployment
+    # A deployment is the prod branch or a release.
+    environment: "${{inputs.environment}}"
+
+    # Larger_Runner is needed for production to use a pool of static ip addresses that we can whitelist
+    # Using an expression makes it so there are no validation complaints
+    runs-on: "${{'Larger_Runner'}}"
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "${{inputs.ref}}"
+          sparse-checkout: |
+            manifests
+            script/ci
+            script/k8s
+
+      - name: Check status step
+        id: check-step
+        if: success()
+        shell: bash
+        run: echo "Workflow successful"
+
+      - name: "Notify slack"
+        if: ${{ always() && inputs.notify }}
+        shell: bash
+        run: |
+          FAILURE=${{ steps.check-step.outcome != 'success' && 'true' || '' }} \
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} \
+          ./script/ci/slack-notification.sh deployed to ${{ env.ENVIRONMENT }}

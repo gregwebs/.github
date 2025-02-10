@@ -1,0 +1,49 @@
+name: "deploy prerelease"
+
+on:
+  release:
+    types: [prereleased]
+
+  push:
+    branches:
+      - 'test-ci/deploy-prerelease/*'
+
+jobs:
+  deploy:
+    if: "${{\
+      startsWith(github.ref, 'refs/tags/release/qa') || \
+      startsWith(github.ref, 'refs/tags/release/staging') || \
+      startsWith(github.ref, 'refs/tags/release/prod') \
+      }}"
+    uses: ./.github/workflows/build-deploy.yaml
+    with:
+      # A prerelease is never deployed to production
+      # A production prerelease is auto-deployed to staging for preview
+      # On a QA or staging pre-release we deploy it to QA or staging
+      # Marking a QA or staging release as published would be confusing
+      # because github only recognized one published release
+      environment: "${{\
+        (startsWith(github.ref, 'refs/tags/release/qa') && 'qa') || \
+        (( startsWith(github.ref, 'refs/tags/release/staging') || \
+          startsWith(github.ref, 'refs/tags/release/prod')
+        ) && 'staging') \
+        }}"
+    secrets: inherit
+
+  # When staging is successfully deployed,
+  # kick off a build, but not a deploy of production
+  # This is useful if the production build takes some time to produce artifacts for the deploy
+  # Here we set artifacts: true
+  # Then when ready to release the build is done and we only need perform the deploy
+  #
+  # If this optimization is not useful for you
+  # you can delete this build-prod clause
+  build-prod:
+    needs: deploy
+    if: "${{ startsWith(github.ref, 'refs/tags/release/prod') }}"
+    uses: ./.github/workflows/build.yaml
+    with:
+      environment: production
+      artifacts: true
+      notify: true
+    secrets: inherit

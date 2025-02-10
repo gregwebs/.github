@@ -1,0 +1,29 @@
+name: Deploy release
+
+on:
+  release:
+    types: [released]
+
+  push:
+    branches:
+      - 'test-ci/deploy-release/*'
+
+# This only calls deploy, assuming that deploy-prerelease performed the build
+# When staging is successfully deployed, the prerelease kicks off a production build, but not a deploy
+# This is useful if the production build takes some time to produce artifacts for the deploy
+# Now here we only need perform the deploy step
+#
+# If this optimization is not useful for you
+# Then you can instead use the below commented out build-deploy
+jobs:
+  build:
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      environment: 'production'
+    secrets: inherit
+
+  # build-deploy:
+    # uses: ./.github/workflows/build-deploy.yaml
+    # with:
+    #   environment: 'production'
+    # secrets: inherit

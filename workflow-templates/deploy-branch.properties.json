@@ -1,0 +1,4 @@
+{
+    "name": "Deploy Branch",
+    "description": "Build and Deploy a branch when it is pushed."
+}

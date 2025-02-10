@@ -1,0 +1,4 @@
+{
+    "name": "Deploy Pre-Release",
+    "description": "Build and Deploy when a pre-release is created. For production, deploy to staging."
+}
